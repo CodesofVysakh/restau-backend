@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("admins")
+}
+
+model Category {
+  id           String     @id @default(uuid())
+  name         String     @unique
+  slug         String     @unique
+  displayOrder Int        @default(0) @map("display_order")
+  menuItems    MenuItem[]
+
+  @@map("categories")
+}
+
+model MenuItem {
+  id                  String               @id @default(uuid())
+  categoryId          String               @map("category_id")
+  name                String
+  description         String
+  imageUrl            String               @map("image_url")
+  basePrice           Decimal              @map("base_price") @db.Decimal(10, 2)
+  prepTimeMins        Int                  @map("prep_time_mins")
+  stockQuantity       Int                  @default(0) @map("stock_quantity")
+  isAvailable         Boolean              @default(true) @map("is_available")
+  dietaryTags         String[]             @map("dietary_tags")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  category            Category             @relation(fields: [categoryId], references: [id])
+  customizationGroups CustomizationGroup[]
+  orderItems          OrderItem[]
+
+  @@map("menu_items")
+}
+
+model CustomizationGroup {
+  id            String                @id @default(uuid())
+  menuItemId    String                @map("menu_item_id")
+  name          String
+  required      Boolean               @default(false)
+  maxSelections Int                   @default(1) @map("max_selections")
+  menuItem      MenuItem              @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  options       CustomizationOption[]
+
+  @@map("customization_groups")
+}
+
+model CustomizationOption {
+  id                      String                   @id @default(uuid())
+  groupId                 String                   @map("group_id")
+  label                   String
+  priceDelta              Decimal                  @default(0) @map("price_delta") @db.Decimal(10, 2)
+  group                   CustomizationGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  orderItemCustomizations OrderItemCustomization[]
+
+  @@map("customization_options")
+}
+
+model Order {
+  id            String               @id @default(uuid())
+  tableNumber   String               @map("table_number")
+  sessionId     String               @map("session_id")
+  status        OrderStatus          @default(RECEIVED)
+  subtotal      Decimal              @db.Decimal(10, 2)
+  tax           Decimal              @db.Decimal(10, 2)
+  total         Decimal              @db.Decimal(10, 2)
+  paymentStatus PaymentStatus        @default(PENDING) @map("payment_status")
+  paymentId     String?              @map("payment_id")
+  placedAt      DateTime             @default(now()) @map("placed_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  String                   @id @default(uuid())
+  orderId             String                   @map("order_id")
+  menuItemId          String                   @map("menu_item_id")
+  quantity            Int
+  unitPrice           Decimal                  @map("unit_price") @db.Decimal(10, 2)
+  specialInstructions String?                  @map("special_instructions")
+  order               Order                    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem            MenuItem                 @relation(fields: [menuItemId], references: [id])
+  customizations      OrderItemCustomization[]
+
+  @@map("order_items")
+}
+
+model OrderItemCustomization {
+  id          String              @id @default(uuid())
+  orderItemId String              @map("order_item_id")
+  optionId    String              @map("option_id")
+  priceDelta  Decimal             @map("price_delta") @db.Decimal(10, 2)
+  orderItem   OrderItem           @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  option      CustomizationOption @relation(fields: [optionId], references: [id])
+
+  @@map("order_item_customizations")
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(uuid())
+  orderId   String      @map("order_id")
+  status    OrderStatus
+  changedAt DateTime    @default(now()) @map("changed_at")
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_status_history")
+}
+
+enum OrderStatus {
+  RECEIVED
+  PREPARING
+  READY
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
