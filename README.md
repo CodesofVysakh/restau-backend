@@ -1,4 +1,4 @@
-# Ember API — NestJS Backend
+# NestJS Backend
 
 ## Quick start (Docker — full stack)
 
